@@ -1,0 +1,15 @@
+# Default owner
+* @PuroTechnico
+
+# Core runtime and market logic
+engine/** @PuroTechnico
+pipelines/** @PuroTechnico
+discovery/** @PuroTechnico
+adapters/** @PuroTechnico
+database/** @PuroTechnico
+models/** @PuroTechnico
+
+# CI/CD and repo policy
+.github/workflows/** @PuroTechnico
+.github/CODEOWNERS @PuroTechnico
+.github/BRANCH_PROTECTION_CHECKLIST.md @PuroTechnico

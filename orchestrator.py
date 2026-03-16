@@ -1,33 +1,20 @@
 # orchestrator.py
 # Version: 4.2.0 — Async-ready orchestrator with unified SnapshotPipeline
 
-import json
 import logging
 from logging.handlers import RotatingFileHandler
-from pathlib import Path
-import os
+
 from dotenv import load_dotenv
-from discovery.universe_builder import build_universe
 
-from database.db import init_schema_v4
 from adapters.crypto_s3_adapter import CryptoS3Adapter
-
+from database.db import init_schema_v4
+from discovery.universe_builder import build_universe
+from runtime_config import validate_runtime_config
 
 # ---------------------------------------------------------
 # Load .env (contains KALSHI_API_KEY and KALSHI_API_SECRET)
 # ---------------------------------------------------------
 load_dotenv()
-
-# API key from .env
-KALSHI_KEY_ID = os.getenv("KALSHI_API_KEY")
-
-# Private key stored in ~/.secrets/kalshi/kalshi_full_key.pem
-KALSHI_KEY_SECRET_PATH = os.path.expanduser("~/.secrets/kalshi/kalshi_full_key.pem")
-with open(KALSHI_KEY_SECRET_PATH, "r") as f:
-    KALSHI_KEY_SECRET = f.read()
-
-# Base URL (fallback to elections API if not in .env)
-KALSHI_BASE_URL = os.getenv("KALSHI_BASE_URL", "https://api.elections.kalshi.com")
 
 
 def setup_logging() -> None:
@@ -56,19 +43,19 @@ def setup_logging() -> None:
 # ---------------------------------------------------------
 
 
-def load_universe():
-    series_path = "/home/maureces/ute/data/kalshi_universe/series.json"
+def load_universe(series_path: str):
     return build_universe(series_path)
 
+
+from adapters.kalshi_rest_adapter import KalshiRESTAdapter
+from dashboard.service import DashboardService
+from discovery.market_locator import CryptoMarketLocator
 
 # ---------------------------------------------------------
 # Imports for orchestrator wiring
 # ---------------------------------------------------------
 from engine.main import Engine
-from dashboard.service import DashboardService
 from pipelines.snapshot_pipeline import SnapshotPipeline
-from adapters.kalshi_rest_adapter import KalshiRESTAdapter
-from discovery.market_locator import CryptoMarketLocator
 
 
 class Orchestrator:
@@ -79,6 +66,7 @@ class Orchestrator:
     """
 
     def __init__(self, loop_interval_seconds: float = 5.0):
+        config = validate_runtime_config(strict=True)
 
         # Initialize database schema if missing
         init_schema_v4()
@@ -86,15 +74,15 @@ class Orchestrator:
         # -----------------------------------------------------
         # 1. Load universe (15m, hourly, daily, weather)
         # -----------------------------------------------------
-        self.universe = load_universe()
+        self.universe = load_universe(str(config.series_path))
 
         # -----------------------------------------------------
         # 2. Kalshi REST adapter (async)
         # -----------------------------------------------------
         self.kalshi = KalshiRESTAdapter(
-            key_id=KALSHI_KEY_ID,
-            key_secret=KALSHI_KEY_SECRET,
-            base_url=KALSHI_BASE_URL,
+            key_id=config.kalshi_api_key,
+            key_secret=config.kalshi_private_key_pem,
+            base_url=config.kalshi_base_url,
         )
 
         # -----------------------------------------------------

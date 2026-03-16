@@ -1,13 +1,13 @@
 # pipelines/snapshot_pipeline.py — v4.0.0 (FULL ASYNC)
-from typing import Dict, List, Optional
-from datetime import datetime
 import logging
+from datetime import datetime, timezone
+from typing import Dict, List, Optional
 
-from models.snapshots import MarketSnapshot
-from adapters.kalshi_rest_adapter import KalshiRESTAdapter
 from adapters.crypto_s3_adapter import CryptoS3Adapter
+from adapters.kalshi_rest_adapter import KalshiRESTAdapter
+from database.db import get_table_columns, insert, to_json
 from discovery.market_locator import CryptoMarketLocator
-from database.db import insert, to_json, get_table_columns
+from models.snapshots import MarketSnapshot
 
 logger = logging.getLogger("SnapshotPipeline")
 
@@ -71,7 +71,7 @@ class SnapshotPipeline:
     # ------------------------------------------------------------
     async def _fetch_all_markets(self) -> Dict[str, MarketSnapshot]:
         out: Dict[str, MarketSnapshot] = {}
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Combine all crypto series families
         all_crypto_series: List[Dict] = (
@@ -208,7 +208,7 @@ class SnapshotPipeline:
     # ------------------------------------------------------------
     async def _fetch_weather_snapshots(self) -> Dict[str, Dict]:
         out: Dict[str, Dict] = {}
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         weather_series = self.universe.get("weather", [])
         logger.debug(

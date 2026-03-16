@@ -1,0 +1,66 @@
+name: Bug Report
+description: Report a defect in runtime, data pipeline, or trading logic.
+title: "[BUG] "
+labels: [bug]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Clear description of the bug.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected Area
+      options:
+        - Orchestrator / Engine loop
+        - Snapshot pipeline
+        - Discovery / Locator
+        - Kalshi adapter
+        - Coinbase / S3 data source
+        - Database / schema
+        - Dashboard
+        - CI/CD
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction Steps
+      description: Numbered steps and exact commands.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Traceback
+      description: Redact secrets before pasting.
+
+  - type: input
+    id: commit
+    attributes:
+      label: Commit SHA / Branch
+      placeholder: main @ <sha>

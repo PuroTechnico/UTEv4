@@ -1,0 +1,54 @@
+name: Feature Request
+description: Propose a feature for trading, data ingestion, or reliability.
+title: "[FEATURE] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What limitation are we solving?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+      description: Describe design and implementation approach.
+    validations:
+      required: true
+
+  - type: textarea
+    id: data
+    attributes:
+      label: Data Inputs Needed
+      description: APIs, symbols, fields, update frequency, and retention.
+
+  - type: textarea
+    id: edge
+    attributes:
+      label: Edge Hypothesis
+      description: Why should this improve prediction-market performance?
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0 (urgent)
+        - P1 (high)
+        - P2 (normal)
+        - P3 (nice-to-have)
+    validations:
+      required: true

@@ -1,33 +1,41 @@
-name: CI/CD for Kalshi Bot
+name: Manual Deploy
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: production
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Run tests
-        run: pytest
+      - name: Validate runtime config (strict)
+        env:
+          KALSHI_API_KEY: ${{ secrets.KALSHI_API_KEY }}
+          KALSHI_BASE_URL: https://api.elections.kalshi.com/trade-api/v2
+          KALSHI_PRIVATE_KEY_PATH: /tmp/kalshi_key.pem
+          UTE_SERIES_PATH: /tmp/series.json
+        run: |
+          printf "%s" "${{ secrets.KALSHI_PRIVATE_KEY_PEM }}" > /tmp/kalshi_key.pem
+          chmod 600 /tmp/kalshi_key.pem
+          printf '%s' '{"series":[]}' > /tmp/series.json
+          python scripts/run_config_check.py --strict
       - name: Deploy to EC2
-        uses: appleboy/ssh-action@v0.1.3
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd ~/kalshi-15m-logger
+            cd ~/UTEv4
             git pull
             source venv/bin/activate
             pip install -r requirements.txt
-            pkill -9 -f "[p]ython.*main.py"
-            screen -dmS kalshi-bot python3 main.py
+            pkill -9 -f "[p]ython.*orchestrator.py" || true
+            screen -dmS ute-v4 python3 orchestrator.py

@@ -1,0 +1,155 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  python-static-checks:
+    name: Python Static Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Compile tracked Python files
+        run: |
+          python - <<'PY'
+          import subprocess
+          import py_compile
+
+          result = subprocess.run(
+              ["git", "ls-files", "*.py"],
+              capture_output=True,
+              text=True,
+              check=True,
+          )
+          files = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+          failures = []
+          for path in files:
+              try:
+                  py_compile.compile(path, doraise=True)
+              except Exception as exc:
+                  failures.append((path, str(exc)))
+
+          if failures:
+              for path, msg in failures:
+                  print(f"FAIL: {path}\n  {msg}")
+              raise SystemExit(1)
+
+          print(f"Compiled {len(files)} Python files successfully.")
+          PY
+
+      - name: Validate production checklist script syntax
+        run: python -m py_compile scripts/run_production_checklist.py
+
+      - name: Validate runtime config (non-strict)
+        run: python scripts/run_config_check.py
+
+      - name: Run offline pipeline contract smoke test
+        run: python -m unittest tests/test_offline_pipeline_contract.py
+
+  repo-hygiene:
+    name: Repo Hygiene Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure no .env is tracked
+        run: |
+          if git ls-files | grep -E '^\.env$' >/dev/null; then
+            echo "ERROR: .env is tracked. Remove it from git."
+            exit 1
+          fi
+
+      - name: Ensure no __pycache__ is tracked
+        run: |
+          if git ls-files | grep -E '__pycache__/|\.pyc$' >/dev/null; then
+            echo "ERROR: __pycache__/.pyc artifacts are tracked."
+            exit 1
+          fi
+
+      - name: Enforce max tracked file size (95MB)
+        run: |
+          python - <<'PY'
+          import os
+          import subprocess
+
+          max_bytes = 95 * 1024 * 1024
+          result = subprocess.run(["git", "ls-files"], capture_output=True, text=True, check=True)
+          oversized = []
+          for rel in result.stdout.splitlines():
+              if not rel:
+                  continue
+              if not os.path.isfile(rel):
+                  continue
+              size = os.path.getsize(rel)
+              if size > max_bytes:
+                  oversized.append((rel, size))
+
+          if oversized:
+              for rel, size in oversized:
+                  print(f"ERROR: {rel} is {size / (1024*1024):.2f} MB")
+              raise SystemExit(1)
+
+          print("No oversized tracked files found.")
+          PY
+
+  networked-integration:
+    name: Networked Integration (Opt-In)
+    if: ${{ vars.ENABLE_NETWORKED_TESTS == 'true' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Write Kalshi private key
+        env:
+          KALSHI_PRIVATE_KEY_PEM: ${{ secrets.KALSHI_PRIVATE_KEY_PEM }}
+        run: |
+          if [ -z "$KALSHI_PRIVATE_KEY_PEM" ]; then
+            echo "Missing secret: KALSHI_PRIVATE_KEY_PEM"
+            exit 1
+          fi
+          printf "%s" "$KALSHI_PRIVATE_KEY_PEM" > /tmp/kalshi_key.pem
+          chmod 600 /tmp/kalshi_key.pem
+
+      - name: Run strict config check
+        env:
+          KALSHI_API_KEY: ${{ secrets.KALSHI_API_KEY }}
+          KALSHI_BASE_URL: https://api.elections.kalshi.com/trade-api/v2
+          KALSHI_PRIVATE_KEY_PATH: /tmp/kalshi_key.pem
+        run: python scripts/run_config_check.py --strict
+
+      - name: Run snapshot integration check
+        env:
+          KALSHI_API_KEY: ${{ secrets.KALSHI_API_KEY }}
+          KALSHI_BASE_URL: https://api.elections.kalshi.com/trade-api/v2
+          KALSHI_PRIVATE_KEY_PATH: /tmp/kalshi_key.pem
+        run: python scripts/run_snapshot_check.py
