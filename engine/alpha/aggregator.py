@@ -9,7 +9,8 @@
 
 from dataclasses import dataclass
 from typing import Dict, List, Optional
-from ute.engine.alpha.base import AlphaSignal
+
+from engine.alpha.base import AlphaSignal
 
 
 @dataclass

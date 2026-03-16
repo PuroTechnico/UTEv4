@@ -7,33 +7,34 @@
 # - Strategies now emit OrderIntent objects
 # ---------------------------------------------------------
 
-from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, List
-from abc import ABC, abstractmethod
-import uuid
 import datetime
+import uuid
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 # Phase‑2 canonical order intent
-from ute.models.order_intent import OrderIntent
-
+from models.order_intent import OrderIntent
 
 # ---------------------------------------------------------
 # AlphaSignal (unchanged)
 # ---------------------------------------------------------
+
 
 @dataclass
 class AlphaSignal:
     """
     Canonical representation of a model's belief about a market.
     """
+
     id: str
-    source: str              # "kalshi_15m", "weather", "pairs", etc.
-    asset: str               # "BTC", "ETH", etc.
-    market: str              # venue-specific ticker
-    direction: str           # "yes", "no", "long", "short"
-    confidence: float        # 0–1
-    edge: float              # model-specific edge score
-    timeframe: str           # "15m", "1h", "event"
+    source: str  # "kalshi_15m", "weather", "pairs", etc.
+    asset: str  # "BTC", "ETH", etc.
+    market: str  # venue-specific ticker
+    direction: str  # "yes", "no", "long", "short"
+    confidence: float  # 0–1
+    edge: float  # model-specific edge score
+    timeframe: str  # "15m", "1h", "event"
     expiry: Optional[datetime.datetime]
     metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -66,6 +67,7 @@ class AlphaSignal:
 # ---------------------------------------------------------
 # StrategyEngine (new for Phase‑2)
 # ---------------------------------------------------------
+
 
 class StrategyEngine(ABC):
     """
