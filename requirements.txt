@@ -1,0 +1,8 @@
+aiohttp>=3.11.0
+cryptography>=46.0.0
+Flask>=3.1.0
+httpx>=0.28.0
+PyJWT>=2.10.0
+python-dotenv>=1.0.0
+pytz>=2025.1
+requests>=2.32.0

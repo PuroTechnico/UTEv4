@@ -1,0 +1,29 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+
+# Local env files
+.env
+
+# SQLite and local data artifacts
+*.db
+*.sqlite
+*.sqlite3
+data/kalshi_universe/series.json
+
+# Logs
+logs/
+*.log
+
+# VS Code local workspace settings (optional)
+.vscode/
+
+# OS artifacts
+.DS_Store
+data/logs/
+data/logs/kalshi_log.txt

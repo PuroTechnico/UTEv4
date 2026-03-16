@@ -1,0 +1,290 @@
+# ---------------------------------------------------------
+# Version: 4.6 — Active‑universe snapshot pipeline (Async Weather + Crypto)
+#
+# This version introduces:
+#   • Async WeatherOracleV4 integration
+#   • Async NOAA/METAR provider wiring via shared httpx client
+#   • Concurrent weather market snapshotting
+#
+# Responsibilities:
+#   • Snapshot ALL active markets in the ACTIVE universe
+#   • Weather + Crypto + S3 crypto snapshots
+#   • Write snapshots to DB
+#   • Return in‑memory crypto S3 snapshots
+#
+# NOT responsible for:
+#   • Execution
+#   • Alpha (beyond weather alpha inside WeatherOracleV4)
+#   • Risk
+#   • Market routing logic (handled by locator)
+#   • Universe discovery (handled by taxonomy)
+# ---------------------------------------------------------
+
+import asyncio
+from datetime import datetime
+from typing import Dict, Any
+
+from adapters.kalshi_rest_adapter import KalshiRESTAdapter
+from adapters.crypto_s3_adapter import CryptoS3Adapter, CryptoSnapshotV3
+
+from discovery.market_locator import CryptoMarketLocator
+from discovery.crypto_taxonomy import classify_crypto_series
+
+# Weather Engine
+from engine.weather.http_client import WeatherHttpClient
+from engine.weather.oracle.weather_oracle_v4 import WeatherOracleV4
+from engine.weather.builder.weather_snapshot_builder import WeatherSnapshotBuilder
+from engine.weather.alpha.weather_alpha_engine import WeatherAlphaEngine
+from engine.weather.resolver.weather_market_resolver import WeatherMarketResolver
+
+from engine.weather.discovery.wfo_discovery import WfoDiscovery
+from engine.weather.discovery.station_discovery import StationDiscovery
+from engine.weather.discovery.points_discovery import PointsDiscovery
+from engine.weather.discovery.cli_discovery import CliDiscovery
+
+from engine.weather.providers.noaa_cli_provider import NoaaCliProvider
+from engine.weather.providers.noaa_points_provider import NoaaPointsProvider
+from engine.weather.providers.noaa_forecast_provider import NoaaForecastProvider
+from engine.weather.providers.noaa_station_provider import NoaaStationProvider
+from engine.weather.providers.noaa_alerts_provider import NoaaAlertsProvider
+from engine.weather.providers.metar_provider import MetarProvider
+
+from engine.weather.models.weather_market import WeatherMarket
+
+
+from models.snapshots import MarketSnapshot, WeatherSnapshot
+from models.opportunities import OpportunitySnapshot
+from database import insert, to_json
+
+class SnapshotPipeline:
+    """
+    Unified static snapshot pipeline.
+    Version: 4.6.0
+    Notes:
+        - Crypto (S3 + Coinbase Spot)
+        - Weather (NOAA + Kalshi)
+        - Hourly markets via API
+        - 15m markets via deterministic generator
+    """
+
+
+    def __init__(self):
+        # REST adapter for Kalshi (sync for now)
+        self.kalshi = KalshiRESTAdapter(
+            key_id="8256582b-74c1-4733-baa7-ad21aa1c15a4",
+            key_secret="/home/kalshi/.secrets/kalshi_rest_secret/kalshi_rest_secret.pem",
+            base_url="https://api.elections.kalshi.com/trade-api/v2",
+        )
+
+        # S3 adapter for off‑chain crypto data (sync)
+        self.crypto_s3 = CryptoS3Adapter.create()
+
+        # Crypto router (series → active markets)
+        self.locator = CryptoMarketLocator(rest=self.kalshi)
+
+        # Load ACTIVE universe (A ∩ C)
+        idx = load_default_taxonomy()
+        self.universe = filter_active_universe(idx)
+
+        # ---------------------------------------------------------
+        # Weather Engine (v4.6.0, async)
+        # ---------------------------------------------------------
+
+        # Shared async HTTP client
+        self.weather_http = WeatherHttpClient(
+            user_agent="UTE-WeatherEngine/4.6 (snapshot-pipeline)"
+        )
+
+        # Providers (async, shared client)
+        self.weather_providers = {
+            "cli": NoaaCliProvider(self.weather_http),
+            "points": NoaaPointsProvider(self.weather_http),
+            "forecast": NoaaForecastProvider(self.weather_http),
+            "station": NoaaStationProvider(self.weather_http),
+            "alerts": NoaaAlertsProvider(self.weather_http),
+            "metar": MetarProvider(self.weather_http),
+        }
+
+        # Discovery modules (smart, cached)
+        self.weather_discovery = {
+            "wfo": WfoDiscovery(self.weather_providers["station"]),
+            "station": StationDiscovery(self.weather_providers["station"]),
+            "points": PointsDiscovery(self.weather_providers["points"]),
+            "cli": CliDiscovery(series_data=None),  # TODO: wire series taxonomy
+        }
+
+        # Builder, Alpha, Resolver
+        self.weather_snapshot_builder = WeatherSnapshotBuilder(
+            providers=self.weather_providers,
+            discovery=self.weather_discovery,
+        )
+
+        self.weather_alpha_engine = WeatherAlphaEngine()
+        self.weather_resolver = WeatherMarketResolver()
+
+        # Oracle (async)
+        self.weather_oracle = WeatherOracleV4(
+            snapshot_builder=self.weather_snapshot_builder,
+            alpha_engine=self.weather_alpha_engine,
+            resolver=self.weather_resolver,
+        )
+
+    # ---------------------------------------------------------
+    # Public API (async)
+    # ---------------------------------------------------------
+    async def run(self) -> Dict[str, Any]:
+        """
+        Main entrypoint for snapshot pipeline (async).
+        """
+        market = self._fetch_all_markets()          # sync
+        weather = await self._fetch_all_weather()   # async
+        crypto_s3 = self._fetch_crypto_s3()         # sync
+
+        opportunity = None
+
+        # Close shared async HTTP client
+        await self.weather_http.aclose()
+
+        return {
+            "market": market,
+            "weather": weather,
+            "crypto_s3": crypto_s3,
+            "opportunity": opportunity,
+        }
+
+    # ---------------------------------------------------------
+    # Market Snapshots (Crypto + any other active markets)
+    # ---------------------------------------------------------
+    def _fetch_all_markets(self) -> Dict[str, MarketSnapshot]:
+        out: Dict[str, MarketSnapshot] = {}
+        now = datetime.utcnow()
+
+        all_crypto_series = (
+            self.universe["crypto_15m"]
+            + self.universe["crypto_hourly"]
+            + self.universe["crypto_daily"]
+        )
+
+        for series in all_crypto_series:
+            active_markets = self.locator.locate(series, now)
+
+            for ticker in active_markets:
+                resp = self.kalshi.get_market_sync(ticker)
+                market = resp.get("market", resp)
+
+                yes_price = float(market.get("yes_bid") or 0) / 100.0
+                no_price = float(market.get("no_bid") or 0) / 100.0
+                spread = abs(yes_price - no_price)
+                volume = int(market.get("volume") or 0)
+                tte_minutes = float(market.get("tte_minutes") or 0)
+
+                snap = MarketSnapshot(
+                    venue_id="kalshi",
+                    ticker=ticker,
+                    yes_price=yes_price,
+                    no_price=no_price,
+                    spread=spread,
+                    volume=volume,
+                    tte_minutes=tte_minutes,
+                    timestamp=now,
+                    liquidity_metrics=None,
+                    volatility_metrics=None,
+                )
+
+                insert("market_snapshot", {
+                    "venue_id": snap.venue_id,
+                    "ticker": snap.ticker,
+                    "yes_price": snap.yes_price,
+                    "no_price": snap.no_price,
+                    "spread": snap.spread,
+                    "volume": snap.volume,
+                    "tte_minutes": snap.tte_minutes,
+                    "timestamp": snap.timestamp.isoformat(),
+                    "liquidity_metrics": to_json(snap.liquidity_metrics),
+                    "volatility_metrics": to_json(snap.volatility_metrics),
+                })
+
+                out[ticker] = snap
+
+        return out
+
+    # ---------------------------------------------------------
+    # Weather Snapshots (async, WeatherOracleV4)
+    # ---------------------------------------------------------
+    async def _fetch_all_weather(self) -> Dict[str, WeatherSnapshot]:
+        """
+        Snapshot all active weather markets using WeatherOracleV4 (async, concurrent).
+        """
+        tasks = []
+        for s in self.universe["weather"]:
+            ticker = s["ticker"]
+            title = s.get("title", "")
+            lat = s.get("lat", 0.0)
+            lon = s.get("lon", 0.0)
+            cli_url = s.get("cli_url", None)
+
+            market = WeatherMarket(
+                ticker=ticker,
+                cli_url=cli_url,
+                lat=lat,
+                lon=lon,
+            )
+
+            tasks.append(self._snapshot_single_weather_market(market, title))
+
+        results = await asyncio.gather(*tasks)
+
+        out: Dict[str, WeatherSnapshot] = {}
+        for ticker, snapshot in results:
+            out[ticker] = snapshot
+
+        return out
+
+    async def _snapshot_single_weather_market(
+        self,
+        market: WeatherMarket,
+        title: str,
+    ):
+        """
+        Async helper to snapshot a single weather market.
+        """
+        now_iso = datetime.utcnow().isoformat()
+
+        result = await self.weather_oracle.run(market)
+        snapshot = result["snapshot"]
+        alpha = result["alpha"]
+        resolution = result["resolution"]
+
+        insert("weather_snapshot", {
+            "oracle_timestamp": now_iso,
+            "location_name": title,
+            "lat": market.lat,
+            "lon": market.lon,
+            "station_id": snapshot.station.station_id if snapshot.station else None,
+            "expected_high": alpha.get("expected_high"),
+            "asos_temp": snapshot.observation.temp_f if snapshot.observation else None,
+            "strikes_f": to_json([]),
+            "strike_type_by_strike": to_json({}),
+            "kalshi_ticker_by_strike": to_json({}),
+            "yes_bid": to_json({}),
+            "yes_ask": to_json({}),
+            "no_bid": to_json({}),
+            "no_ask": to_json({}),
+            "model_prob_by_strike": to_json(alpha),
+        })
+
+        return market.ticker, snapshot
+
+    # ---------------------------------------------------------
+    # Crypto S3 Snapshot (memory only)
+    # ---------------------------------------------------------
+    def _fetch_crypto_s3(self) -> Dict[str, CryptoSnapshotV3]:
+        symbols = ["BTC", "ETH", "XRP", "SOL", "DOGE"]
+        out: Dict[str, CryptoSnapshotV3] = {}
+
+        for sym in symbols:
+            snap = self.crypto_s3.build_snapshot(sym)
+            if snap:
+                out[sym] = snap
+
+        return out

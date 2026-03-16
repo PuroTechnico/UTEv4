@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Multi‑Venue Monitor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script defer src="{{ url_for('static', filename='js/charts.js') }}"></script>
+</head>
+
+<body class="cb-body">
+  <div class="cb-shell">
+
+    <!-- Sidebar -->
+    <aside class="cb-sidebar">
+      <div class="cb-logo">KALSHI x COINBASE</div>
+      <nav class="cb-nav">
+        <a href="/" class="cb-nav-item cb-nav-item--active">Overview</a>
+      </nav>
+      <div class="cb-sidebar-footer">
+        <div class="cb-hb-label">Engine status</div>
+        <div class="cb-hb-pill cb-hb-pill--{{ heartbeat.status|lower }}">
+          {{ heartbeat.status }}
+        </div>
+        <div class="cb-hb-age">{{ heartbeat.age_str }}</div>
+      </div>
+    </aside>
+
+    <!-- Main content -->
+    <main class="cb-main">
+
+      <!-- Top summary bar -->
+      <section class="cb-topbar">
+        <div class="cb-topbar-left">
+          <h1 class="cb-title">Unified Multi‑Venue Dashboard</h1>
+          <div class="cb-subtitle">Crypto • Weather • Kalshi</div>
+        </div>
+
+        <div class="cb-topbar-right">
+          <div class="cb-stat-card">
+            <div class="cb-stat-label">Open positions</div>
+            <div class="cb-stat-value">{{ total_positions }}</div>
+          </div>
+          <div class="cb-stat-card">
+            <div class="cb-stat-label">Total trades</div>
+            <div class="cb-stat-value">{{ total_trades }}</div>
+          </div>
+          <div class="cb-stat-card">
+            <div class="cb-stat-label">Realized PnL</div>
+            <div class="cb-stat-value cb-stat-value--pnl">
+              {{ "%.2f"|format(realized_pnl) }}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- NEW SECTION: CRYPTO SPOT GRID (3‑column tile layout)      -->
+      <!-- ========================================================= -->
+      <section class="tile-section">
+        <h2 class="tile-section-title">Crypto Spot (Coinbase)</h2>
+
+        <div class="grid-3col">
+          {% for row in crypto_spot %}
+          <div class="tile">
+            <div class="tile-header">
+              <div class="tile-title">{{ row.asset }}</div>
+            </div>
+
+            <div class="tile-body">
+              <div class="tile-line">
+                <span>Price</span>
+                <span>{{ "%.4f"|format(row.price or 0.0) }}</span>
+              </div>
+              <div class="tile-line">
+                <span>Updated</span>
+                <span>{{ row.timestamp }}</span>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- NEW SECTION: KALSHI 15m GRID                              -->
+      <!-- ========================================================= -->
+      <section class="tile-section">
+        <h2 class="tile-section-title">Kalshi Crypto — 15 Minute Markets</h2>
+
+        <div class="grid-3col">
+          {% for row in kalshi_15m %}
+          <div class="tile">
+            <div class="tile-header">
+              <div class="tile-title">{{ row.asset }} 15m</div>
+            </div>
+
+            <div class="tile-body">
+              <div class="tile-line">
+                <span>YES / NO</span>
+                <span>
+                  {{ "%.3f"|format(row.yes or 0.0) }} /
+                  {{ "%.3f"|format(row.no or 0.0) }}
+                </span>
+              </div>
+
+              <div class="tile-line">
+                <span>Spread</span>
+                <span>{{ "%.3f"|format(row.spread or 0.0) }}</span>
+              </div>
+
+              <div class="tile-line">
+                <span>Volume</span>
+                <span>{{ row.volume or 0 }}</span>
+              </div>
+
+              <div class="tile-line">
+                <span>TTE (min)</span>
+                <span>{{ row.tte or 0 }}</span>
+              </div>
+
+              <div class="tile-line">
+                <span>Updated</span>
+                <span>{{ row.timestamp }}</span>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+      <!-- ========================================================= -->
+      <!-- NEW SECTION: KALSHI HOURLY GRID                           -->
+      <!-- ========================================================= -->
+      <section class="tile-section">
+        <h2 class="tile-section-title">Kalshi Crypto — Hourly Markets</h2>
+
+        <div class="grid-3col">
+          {% for row in kalshi_hourly %}
+          <div class="tile">
+            <div class="tile-header">
+              <div class="tile-title">{{ row.asset }} 1h</div>
+            </div>
+
+            <div class="tile-body">
+              <div class="tile-line">
+                <span>YES / NO</span>
+                <span>
+                  {{ "%.3f"|format(row.yes or 0.0) }} /
+                  {{ "%.3f"|format(row.no or 0.0) }}
+                </span>
+              </div>
+
+              <div class="tile-line">
+                <span>Spread</span>
+                <span>{{ "%.3f"|format(row.spread or 0.0) }}</span>
+              </div>
+
+              <div class="tile-line">
+                <span>Volume</span>
+                <span>{{ row.volume or 0 }}</span>
+              </div>
+
+              <div class="tile-line">
+                <span>TTE (min)</span>
+                <span>{{ row.tte or 0 }}</span>
+              </div>
+
+              <div class="tile-line">
+                <span>Updated</span>
+                <span>{{ row.timestamp }}</span>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- NEW SECTION: WEATHER GRID                                 -->
+      <!-- ========================================================= -->
+      <section class="tile-section">
+        <h2 class="tile-section-title">Weather Markets</h2>
+
+        <div class="grid-3col">
+          {% for w in weather_grid %}
+          <div class="tile">
+            <div class="tile-header">
+              <div class="tile-title">{{ w.city }} — {{ w.date }}</div>
+            </div>
+
+            <div class="tile-body">
+              <div class="tile-line">
+                <span>Expected High</span>
+                <span>{{ w.expected_high }}</span>
+              </div>
+
+              <div class="tile-line">
+                <span>ASOS Temp</span>
+                <span>{{ w.asos_temp }}</span>
+              </div>
+
+              <div class="tile-line">
+                <span>Prob > Strike</span>
+                <span>{{ "%.2f"|format(w.prob_gt_strike or 0.0) }}</span>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- NEW SECTION: WEATHER MODEL TILE (FULL MODEL TILE)         -->
+      <!-- ========================================================= -->
+      <section class="tile-section">
+        <h2 class="tile-section-title">Weather Model — Detailed View</h2>
+
+        <div class="grid-3col">
+          <div class="tile">
+            <div class="tile-header">
+              <div class="tile-title">
+                {{ weather_model_tile.city }} — {{ weather_model_tile.date }}
+              </div>
+            </div>
+
+            <div class="tile-body">
+              <div class="tile-line">
+                <span>Expected High</span>
+                <span>{{ weather_model_tile.expected_high }}</span>
+              </div>
+
+              <div class="tile-line">
+                <span>ASOS Temp</span>
+                <span>{{ weather_model_tile.asos_temp }}</span>
+              </div>
+
+              <div class="tile-line">
+                <span>Pace</span>
+                <span>{{ weather_model_tile.pace }}</span>
+              </div>
+
+              <div class="tile-line">
+                <span>Prob Curve</span>
+                <span>{{ weather_model_tile.prob_curve|length }} pts</span>
+              </div>
+            </div>
+
+            <div class="tile-footer">
+              Model visualization below
+            </div>
+          </div>
+
+          <!-- Weather Model Chart -->
+          <div class="tile">
+            <canvas id="weatherModelChart"></canvas>
+          </div>
+
+          <!-- Placeholder for future model diagnostics -->
+          <div class="tile">
+            <div class="tile-header">
+              <div class="tile-title">Model Diagnostics</div>
+            </div>
+            <div class="tile-body">
+              <div class="tile-line">
+                <span>Curve Points</span>
+                <span>{{ weather_model_tile.prob_curve|length }}</span>
+              </div>
+              <div class="tile-line">
+                <span>Data Source</span>
+                <span>Blended Forecast</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- NEW SECTION: CRYPTO VOLATILITY TILE (FULL MODEL TILE)     -->
+      <!-- ========================================================= -->
+      <section class="tile-section">
+        <h2 class="tile-section-title">Crypto Volatility</h2>
+
+        <div class="grid-3col">
+          {% for v in crypto_vol_tiles %}
+          <div class="tile">
+            <div class="tile-header">
+              <div class="tile-title">{{ v.asset }}</div>
+            </div>
+
+            <div class="tile-body">
+              <div class="tile-line">
+                <span>1h Vol</span>
+                <span>{{ "%.4f"|format(v.vol_1h or 0.0) }}</span>
+              </div>
+
+              <div class="tile-line">
+                <span>24h Vol</span>
+                <span>{{ "%.4f"|format(v.vol_24h or 0.0) }}</span>
+              </div>
+
+              <div class="tile-line">
+                <span>Sparkline</span>
+                <span>{{ v.sparkline|length }} pts</span>
+              </div>
+            </div>
+
+            <div class="tile-footer">
+              <canvas id="spark_{{ v.asset }}"></canvas>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- NEW SECTION: HEARTBEAT TILE (FULL ENGINE HEALTH TILE)     -->
+      <!-- ========================================================= -->
+      <section class="tile-section">
+        <h2 class="tile-section-title">Engine Health</h2>
+
+        <div class="grid-3col">
+          <div class="tile">
+            <div class="tile-header">
+              <div class="tile-title">Heartbeat Summary</div>
+            </div>
+
+            <div class="tile-body">
+              <div class="tile-line">
+                <span>Status</span>
+                <span>{{ heartbeat.status }}</span>
+              </div>
+
+              <div class="tile-line">
+                <span>Age</span>
+                <span>{{ heartbeat.age_str }}</span>
+              </div>
+
+              <div class="tile-line">
+                <span>History</span>
+                <span>{{ heartbeat_history|length }} pts</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="tile">
+            <canvas id="heartbeatChart"></canvas>
+          </div>
+
+          <div class="tile">
+            <div class="tile-header">
+              <div class="tile-title">Uptime</div>
+            </div>
+            <div class="tile-body">
+              <div class="tile-line">
+                <span>Recent Statuses</span>
+                <span>
+                  {% for h in heartbeat_history[-5:] %}
+                    {{ h.status }}{% if not loop.last %}, {% endif %}
+                  {% endfor %}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- ========================================================= -->
+      <!-- EXISTING ROW 1: Asset tiles + Coinbase prices             -->
+      <!-- ========================================================= -->
+      <section class="cb-row">
+        <div class="cb-col cb-col-2">
+          <div class="cb-panel">
+            <div class="cb-panel-header">
+              <div class="cb-panel-title">Assets</div>
+            </div>
+            <div class="cb-asset-grid">
+              {% for asset, row in heatmap.items() %}
+              <div class="cb-asset-card">
+                <div class="cb-asset-header">
+                  <div class="cb-asset-symbol">{{ asset }}</div>
+                  <div class="cb-asset-readiness cb-asset-readiness--{{ 'high' if row.readiness >= 80 else 'med' if row.readiness >= 60 else 'low' }}">
+                    {{ row.readiness }}
+                  </div>
+                </div>
+                <div class="cb-asset-body">
+                  <div class="cb-asset-line">
+                    <span>Coinbase</span>
+                    <span class="cb-asset-value">
+                      {{ "%.4f"|format(row.coinbase_price or 0.0) }}
+                    </span>
+                  </div>
+                  <div class="cb-asset-line">
+                    <span>YES / NO</span>
+                    <span class="cb-asset-value">
+                      {{ "%.3f"|format(row.kalshi_yes or 0.0) }} /
+                      {{ "%.3f"|format(row.kalshi_no or 0.0) }}
+                    </span>
+                  </div>
+                  <div class="cb-asset-line">
+                    <span>Spread</span>
+                    <span class="cb-asset-value">
+                      {{ "%.3f"|format(row.spread or 0.0) }}
+                    </span>
+                  </div>
+                  <div class="cb-asset-line">
+                    <span>Volume</span>
+                    <span class="cb-asset-value">
+                      {{ row.volume or 0 }}
+                    </span>
+                  </div>
+                  <div class="cb-asset-line">
+                    <span>TTE (min)</span>
+                    <span class="cb-asset-value">
+                      {{ row.tte or 0 }}
+                    </span>
+                  </div>
+                </div>
+                <div class="cb-asset-footer">
+                  <span class="cb-asset-skip">{{ row.skip_reason }}</span>
+                  <span class="cb-asset-ts">{{ row.created_at }}</span>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <div class="cb-col cb-col-1">
+          <div class="cb-panel">
+            <div class="cb-panel-header">
+              <div class="cb-panel-title">Coinbase spot</div>
+            </div>
+            <div class="cb-table-wrapper">
+              <table class="cb-table">
+                <thead>
+                  <tr>
+                    <th>Asset</th>
+                    <th>Price</th>
+                    <th>Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in coinbase_prices %}
+                  <tr>
+                    <td>{{ row.asset }}</td>
+                    <td>{{ "%.4f"|format(row.price or 0.0) }}</td>
+                    <td>{{ row.timestamp }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Row 2: Opportunities + Positions -->
+      <section class="cb-row">
+        <div class="cb-col cb-col-2">
+          <div class="cb-panel">
+            <div class="cb-panel-header">
+              <div class="cb-panel-title">Opportunities (readiness ≥ 60)</div>
+            </div>
+            <div class="cb-table-wrapper cb-table-wrapper--scroll">
+              <table class="cb-table">
+                <thead>
+                  <tr>
+                    <th>Asset</th>
+                    <th>Time</th>
+                    <th>YES</th>
+                    <th>NO</th>
+                    <th>Spread</th>
+                    <th>Vol</th>
+                    <th>Edge</th>
+                    <th>TTE</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for asset, rows in opportunities.items() %}
+                    {% for r in rows %}
+                    <tr>
+                      <td>{{ asset }}</td>
+                      <td>{{ r.timestamp }}</td>
+                      <td>{{ "%.3f"|format(r.kalshi_yes or 0.0) }}</td>
+                      <td>{{ "%.3f"|format(r.kalshi_no or 0.0) }}</td>
+                      <td>{{ "%.3f"|format(r.spread or 0.0) }}</td>
+                      <td>{{ r.volume or 0 }}</td>
+                      <td>{{ "%.2f"|format(r.edge_score or 0.0) }}</td>
+                      <td>{{ r.tte or 0 }}</td>
+                    </tr>
+                    {% endfor %}
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="cb-col cb-col-1">
+          <div class="cb-panel">
+            <div class="cb-panel-header">
+              <div class="cb-panel-title">Open positions</div>
+            </div>
+            <div class="cb-table-wrapper cb-table-wrapper--scroll">
+              <table class="cb-table">
+                <thead>
+                  <tr>
+                    <th>Ticker</th>
+                    <th>Side</th>
+                    <th>Count</th>
+                    <th>Entry</th>
+                    <th>HWM</th>
+                    <th>Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for p in positions %}
+                  <tr>
+                    <td>{{ p.ticker }}</td>
+                    <td>{{ p.side }}</td>
+                    <td>{{ p.count }}</td>
+                    <td>{{ "%.3f"|format(p.entry_price or 0.0) }}</td>
+                    <td>{{ "%.3f"|format(p.high_water_mark or 0.0) }}</td>
+                    <td>{{ p.created_at }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Row 3: Trades / Fills / Settlements -->
+      <section class="cb-row">
+        <div class="cb-col cb-col-1">
+          <div class="cb-panel">
+            <div class="cb-panel-header">
+              <div class="cb-panel-title">Recent trades</div>
+            </div>
+            <div class="cb-table-wrapper cb-table-wrapper--scroll">
+              <table class="cb-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Ticker</th>
+                    <th>Side</th>
+                    <th>Count</th>
+                    <th>Price</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for t in trades %}
+                  <tr>
+                    <td>{{ t.created_at }}</td>
+                    <td>{{ t.ticker }}</td>
+                    <td>{{ t.side }}</td>
+                    <td>{{ t.count }}</td>
+                    <td>{{ "%.3f"|format(t.price or 0.0) }}</td>
+                    <td>{{ t.status }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="cb-col cb-col-1">
+          <div class="cb-panel">
+            <div class="cb-panel-header">
+              <div class="cb-panel-title">Fills</div>
+            </div>
+            <div class="cb-table-wrapper cb-table-wrapper--scroll">
+              <table class="cb-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Ticker</th>
+                    <th>Side</th>
+                    <th>Size</th>
+                    <th>Price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for f in fills %}
+                  <tr>
+                    <td>{{ f.created_time }}</td>
+                    <td>{{ f.ticker }}</td>
+                    <td>{{ f.side }}</td>
+                    <td>{{ f.size }}</td>
+                    <td>{{ "%.3f"|format(f.price or 0.0) }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="cb-col cb-col-1">
+          <div class="cb-panel">
+            <div class="cb-panel-header">
+              <div class="cb-panel-title">Settlements</div>
+            </div>
+            <div class="cb-table-wrapper cb-table-wrapper--scroll">
+              <table class="cb-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Ticker</th>
+                    <th>PnL / Payout</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for s in settlements %}
+                  <tr>
+                    <td>{{ s.settled_time }}</td>
+                    <td>{{ s.ticker }}</td>
+                    <td>
+                      {% if s.pnl is not none %}
+                        {{ "%.2f"|format(s.pnl) }}
+                      {% elif s.payout is not none %}
+                        {{ "%.2f"|format(s.payout) }}
+                      {% else %}
+                        -
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Chart.js wiring for tiles -->
+  <script>
+    // Auto dark/light mode
+    const prefersDark = window.matchMedia &&
+                        window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    const baseGridColor = prefersDark ? '#444' : '#ccc';
+    const baseTextColor = prefersDark ? '#e6e6e6' : '#222';
+
+    // Weather model chart
+    {% if weather_model_tile %}
+    const weatherCtx = document.getElementById('weatherModelChart').getContext('2d');
+    new Chart(weatherCtx, {
+      type: 'line',
+      data: {
+        labels: [...Array({{ weather_model_tile.prob_curve|length }}).keys()],
+        datasets: [{
+          label: 'Prob > Strike',
+          data: {{ weather_model_tile.prob_curve | tojson }},
+          borderColor: '#3a7afe',
+          backgroundColor: 'rgba(58,122,254,0.2)',
+          tension: 0.25,
+        }]
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { color: baseGridColor }, ticks: { color: baseTextColor } },
+          y: { grid: { color: baseGridColor }, ticks: { color: baseTextColor } }
+        }
+      }
+    });
+    {% endif %}
+
+    // Crypto volatility sparklines
+    {% for v in crypto_vol_tiles %}
+    (function() {
+      const el = document.getElementById('spark_{{ v.asset }}');
+      if (!el) return;
+      const ctx = el.getContext('2d');
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [...Array({{ v.sparkline|length }}).keys()],
+          datasets: [{
+            data: {{ v.sparkline | tojson }},
+            borderColor: '#ffb74d',
+            backgroundColor: 'rgba(255,183,77,0.15)',
+            tension: 0.25,
+          }]
+        },
+        options: {
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { display: false },
+            y: { display: false }
+          },
+          elements: {
+            point: { radius: 0 }
+          }
+        }
+      });
+    })();
+    {% endfor %}
+
+    // Heartbeat chart
+    {% if heartbeat_history %}
+    const hbCtx = document.getElementById('heartbeatChart').getContext('2d');
+    const hbLabels = {{ heartbeat_history | map(attribute='timestamp') | list | tojson }};
+    const hbStatuses = {{ heartbeat_history | map(attribute='status') | list | tojson }};
+    const hbNumeric = hbStatuses.map(s => {
+      if (s === 'OK') return 2;
+      if (s === 'WARN') return 1;
+      if (s === 'ERROR') return 0;
+      return -1;
+    });
+
+    new Chart(hbCtx, {
+      type: 'line',
+      data: {
+        labels: hbLabels,
+        datasets: [{
+          data: hbNumeric,
+          borderColor: '#4caf50',
+          backgroundColor: 'rgba(76,175,80,0.2)',
+          stepped: true,
+        }]
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          x: {
+            grid: { color: baseGridColor },
+            ticks: { color: baseTextColor, maxTicksLimit: 5 }
+          },
+          y: {
+            grid: { color: baseGridColor },
+            ticks: {
+              color: baseTextColor,
+              callback: function(v) {
+                if (v === 2) return 'OK';
+                if (v === 1) return 'WARN';
+                if (v === 0) return 'ERROR';
+                return '';
+              }
+            },
+            min: -0.5,
+            max: 2.5
+          }
+        }
+      }
+    });
+    {% endif %}
+  </script>
+</body>
+</html>

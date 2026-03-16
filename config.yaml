@@ -1,0 +1,65 @@
+# Strategy Configuration v3.3 – Overnight Live Mode (Crypto + Weather)
+strategy_version: "3.3-overnight-B"
+
+# Core parameters
+LOGGING_ONLY: false          # LIVE TRADING ENABLED
+TRADING_METHOD: "EDGE"
+EDGE_TRIGGER: 0.45
+SLIPPAGE: 0.018
+
+# Risk limits
+MAX_CONTRACTS: 1             # 1 contract per market (crypto + weather)
+MAX_TOTAL_EXPOSURE: 9999     # effectively uncapped for overnight testing
+MIN_EQUITY_SHUTDOWN: 20.0    # safety floor
+
+# Exit thresholds (future use)
+PROFIT_TAKE_THRESHOLD: 0.08
+MAJOR_GAIN_THRESHOLD: 0.40
+TRAILING_STOP_OFFSET: 0.10
+SPREAD_WIDEN_FACTOR: 1.1
+
+# Entry filters (global)
+MAX_SPREAD: 0.20             # Option B – realistic for Kalshi crypto
+HYBRID_MIN_EDGE: 0.55
+MIN_TTE: 1
+MAX_TTE: 14
+MIN_VOLUME: 200
+
+# Coinbase move threshold (relaxed)
+MIN_COINBASE_MOVE: 0.0005    # allows more valid trades
+
+# Per-asset overrides (crypto)
+PER_ASSET_CONFIG:
+  BTC:
+    min_edge_yes: 0.60
+    min_edge_no: 0.58
+    max_spread: 0.20
+    min_volume: 200
+  ETH:
+    min_edge_yes: 0.60
+    min_edge_no: 0.58
+    max_spread: 0.20
+    min_volume: 200
+  SOL:
+    min_edge_yes: 0.60
+    min_edge_no: 0.58
+    max_spread: 0.20
+    min_volume: 200
+  XRP:
+    min_edge_yes: 0.60
+    min_edge_no: 0.58
+    max_spread: 0.20
+    min_volume: 200
+
+# Assets and timeframes
+ASSETS:
+  - BTC
+  - ETH
+  - SOL
+  - XRP
+
+TIMEFRAMES:
+  - "15M"
+
+# Kalshi API base URL
+KALSHI_BASE_URL: "https://api.elections.kalshi.com"
